@@ -4,6 +4,7 @@ import {
   authenticateUser,
   getUserById,
   registerUser,
+  registerInitialAdmin,
 } from "../services/auth.service.js";
 
 import asyncHandler from "../utils/asyncHandler.js";
@@ -89,6 +90,22 @@ export const getCurrentUser = asyncHandler(
       success: true,
       data: {
         user,
+      },
+    });
+  }
+);
+
+export const registerAdmin = asyncHandler(
+  async (request, response) => {
+    const admin = await registerInitialAdmin(
+      request.validated.body
+    );
+
+    response.status(201).json({
+      success: true,
+      message: "Initial admin registered successfully",
+      data: {
+        user: admin,
       },
     });
   }

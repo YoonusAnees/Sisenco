@@ -101,3 +101,51 @@ export const getUserById = async (userId) => {
 
     return user;
 };
+
+
+export const registerInitialAdmin = async ({
+  name,
+  email,
+  password,
+  department,
+  jobTitle,
+}) => {
+  /*
+   * Only allow this endpoint while no admin exists.
+   */
+  const adminExists = await User.exists({
+    role: USER_ROLES.ADMIN,
+  });
+
+  if (adminExists) {
+    throw new AppError(
+      "Initial admin registration is no longer available",
+      403
+    );
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const existingUser = await User.exists({
+    email: normalizedEmail,
+  });
+
+  if (existingUser) {
+    throw new AppError(
+      "An account with this email already exists",
+      409
+    );
+  }
+
+  const admin = await User.create({
+    name,
+    email: normalizedEmail,
+    passwordHash: password,
+    role: USER_ROLES.ADMIN,
+    department,
+    jobTitle,
+    isActive: true,
+  });
+
+  return admin;
+};

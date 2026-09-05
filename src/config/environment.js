@@ -60,4 +60,8 @@ export const env = Object.freeze({
     get isProduction() {
         return process.env.NODE_ENV === "production";
     },
+
+    get adminRegistrationSecret() {
+        return process.env.ADMIN_REGISTRATION_SECRET;
+    },
 });
