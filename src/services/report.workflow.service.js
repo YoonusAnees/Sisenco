@@ -8,6 +8,7 @@ import {
 
 import {Project} from "../models/index.js";
 import {WeeklyReport} from "../models/index.js";
+import {ReportVersion} from "../models/index.js";
 import AppError from "../utils/AppError.js";
 
 const workflowPopulation = [
@@ -178,77 +179,168 @@ export const submitWeeklyReport = async ({
   reportId,
   currentUser,
 }) => {
-  const report = await WeeklyReport.findById(
-    reportId
-  );
+  const session =
+    await mongoose.startSession();
 
-  if (!report) {
-    throw new AppError(
-      "Weekly report not found",
-      404
+  let submittedReport;
+
+  try {
+    await session.withTransaction(
+      async () => {
+        const report =
+          await WeeklyReport.findById(
+            reportId
+          ).session(session);
+
+        if (!report) {
+          throw new AppError(
+            "Weekly report not found",
+            404
+          );
+        }
+
+        if (
+          report.owner.toString() !==
+          currentUser.id.toString()
+        ) {
+          throw new AppError(
+            "You can only submit your own report",
+            403
+          );
+        }
+
+        const allowedStatuses = [
+          REPORT_STATUSES.DRAFT,
+          REPORT_STATUSES.NEEDS_CORRECTION,
+        ];
+
+        if (
+          !allowedStatuses.includes(
+            report.status
+          )
+        ) {
+          throw new AppError(
+            "Only draft or corrected reports can be submitted",
+            400
+          );
+        }
+
+        /*
+         * Prevent empty weekly reports from
+         * being submitted.
+         */
+        const hasReportContent =
+          report.summary ||
+          report.completedTasks.length > 0 ||
+          report.nextWeekTasks.length > 0 ||
+          report.blockers.length > 0 ||
+          report.achievements.length > 0 ||
+          report.hoursBreakdown.length > 0;
+
+        if (!hasReportContent) {
+          throw new AppError(
+            "An empty weekly report cannot be submitted",
+            400
+          );
+        }
+
+        const sourceStatus = report.status;
+
+        const nextVersion =
+          (report.currentVersion || 0) + 1;
+
+        const submittedAt = new Date();
+
+        /*
+         * Change the main report state.
+         */
+        report.status =
+          REPORT_STATUSES.SUBMITTED;
+
+        report.currentVersion =
+          nextVersion;
+
+        report.submittedAt =
+          submittedAt;
+
+        /*
+         * A corrected resubmission must clear
+         * the old approval information.
+         */
+        report.approvedAt = null;
+        report.updatedBy = currentUser.id;
+
+        await report.save({
+          session,
+        });
+
+        /*
+         * Convert the report into an independent
+         * plain object for historical storage.
+         */
+        const snapshot = report.toObject({
+          depopulate: true,
+          virtuals: false,
+          versionKey: false,
+        });
+
+        delete snapshot._id;
+
+        await ReportVersion.create(
+          [
+            {
+              report: report._id,
+              owner: report.owner,
+              versionNumber:
+                nextVersion,
+              sourceStatus,
+              snapshot,
+              submittedBy:
+                currentUser.id,
+              submittedAt,
+            },
+          ],
+          {
+            session,
+          }
+        );
+
+        submittedReport = report;
+      }
     );
+  } finally {
+    await session.endSession();
   }
 
-  if (
-    report.owner.toString() !==
-    currentUser.id.toString()
-  ) {
-    throw new AppError(
-      "You can only submit your own report",
-      403
-    );
-  }
+  await submittedReport.populate([
+    {
+      path: "owner",
+      select:
+        "name email role department jobTitle",
+    },
+    {
+      path: "completedTasks.project",
+      select: "name code category status",
+    },
+    {
+      path: "nextWeekTasks.project",
+      select: "name code category status",
+    },
+    {
+      path: "blockers.project",
+      select: "name code category status",
+    },
+    {
+      path: "achievements.project",
+      select: "name code category status",
+    },
+    {
+      path: "hoursBreakdown.project",
+      select: "name code category status",
+    },
+  ]);
 
-  const allowedStatuses = [
-    REPORT_STATUSES.DRAFT,
-    REPORT_STATUSES.NEEDS_CORRECTION,
-  ];
-
-  if (!allowedStatuses.includes(report.status)) {
-    if (
-      report.status ===
-      REPORT_STATUSES.APPROVED
-    ) {
-      throw new AppError(
-        "An approved report cannot be submitted again",
-        400
-      );
-    }
-
-    throw new AppError(
-      "This report has already been submitted",
-      400
-    );
-  }
-
-  ensureReportIsComplete(report);
-
-  const isResubmission =
-    report.status ===
-    REPORT_STATUSES.NEEDS_CORRECTION;
-
-  report.status =
-    REPORT_STATUSES.SUBMITTED;
-
-  report.submittedAt = new Date();
-
-  report.submissionCount += 1;
-
-  report.updatedBy = currentUser.id;
-
-  /*
-   * Do not remove the latest correction note.
-   * It remains available for context until
-   * Phase 6/7 adds full review history.
-   */
-  await report.save();
-
-  await report.populate(workflowPopulation);
-
-  return {
-    report,
-    isResubmission,
-  };
+  return submittedReport;
 };
 
 export const requestReportCorrection =

@@ -453,8 +453,16 @@ const weeklyReportSchema =
                 required: true,
             },
 
+            currentVersion: {
+                type: Number,
+                min: 0,
+                default: 0,
+            }
+
 
         },
+
+        
         {
             timestamps: true,
             versionKey: false,
