@@ -246,6 +246,11 @@ const reportContentSchema = {
         .default([]),
 };
 
+
+const reportWorkflowParamsSchema = z.object({
+  reportId: objectIdSchema,
+});
+
 export const createReportSchema = z.object({
     body: z
         .object({
@@ -341,4 +346,35 @@ export const updateReportSchema = z.object({
                     "At least one report field must be provided",
             }
         ),
+});
+
+
+
+
+export const submitReportSchema = z.object({
+  params: reportWorkflowParamsSchema,
+});
+
+export const requestCorrectionSchema = z.object({
+  params: reportWorkflowParamsSchema,
+
+  body: z
+    .object({
+      correctionNote: z
+        .string()
+        .trim()
+        .min(
+          5,
+          "Correction note must contain at least 5 characters"
+        )
+        .max(
+          2000,
+          "Correction note cannot exceed 2000 characters"
+        ),
+    })
+    .strict(),
+});
+
+export const approveReportSchema = z.object({
+  params: reportWorkflowParamsSchema,
 });

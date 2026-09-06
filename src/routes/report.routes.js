@@ -1,87 +1,118 @@
 import { Router } from "express";
 
 import {
-    createReport,
-    getMyReports,
-    getSingleReport,
-    updateReport,
+  createReport,
+  getMyReports,
+  getSingleReport,
+  updateReport,
 } from "../controllers/report.controller.js";
 
 import {
-    USER_ROLES,
+  approveReport,
+  requestCorrection,
+  submitReport,
+} from "../controllers/report.workflow.controller.js";
+
+import {
+  USER_ROLES,
 } from "../constants/constant.roles.js";
 
 import authenticate from
-    "../middlewares/middleware.authenticate.js";
+  "../middlewares/middleware.authenticate.js";
 
 import authorize from
-    "../middlewares/middleware.authorize.js";
+  "../middlewares/middleware.authorize.js";
 
 import validate from
-    "../middlewares/middleware.validate.js";
+  "../middlewares/middleware.validate.js";
 
 import {
-    createReportSchema,
-    getMyReportsSchema,
-    getReportByIdSchema,
-    updateReportSchema,
+  approveReportSchema,
+  createReportSchema,
+  getMyReportsSchema,
+  getReportByIdSchema,
+  requestCorrectionSchema,
+  submitReportSchema,
+  updateReportSchema,
 } from "../validators/report.validator.js";
 
 const router = Router();
 
 router.use(authenticate);
 
-/*
- * Every active authenticated user may create
- * their own weekly report draft.
- */
 router.post(
-    "/",
-    authorize(
-        USER_ROLES.MEMBER,
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
-    validate(createReportSchema),
-    createReport
-);
-
-/*
- * This route must be declared before
- * "/:reportId", otherwise Express may treat
- * "me" as a report ID.
- */
-router.get(
-    "/me",
-    authorize(
-        USER_ROLES.MEMBER,
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
-    validate(getMyReportsSchema),
-    getMyReports
+  "/",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(createReportSchema),
+  createReport
 );
 
 router.get(
-    "/:reportId",
-    authorize(
-        USER_ROLES.MEMBER,
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
-    validate(getReportByIdSchema),
-    getSingleReport
+  "/me",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(getMyReportsSchema),
+  getMyReports
+);
+
+router.post(
+  "/:reportId/submit",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(submitReportSchema),
+  submitReport
+);
+
+router.post(
+  "/:reportId/request-correction",
+  authorize(
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(requestCorrectionSchema),
+  requestCorrection
+);
+
+router.post(
+  "/:reportId/approve",
+  authorize(
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(approveReportSchema),
+  approveReport
+);
+
+router.get(
+  "/:reportId",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(getReportByIdSchema),
+  getSingleReport
 );
 
 router.patch(
-    "/:reportId",
-    authorize(
-        USER_ROLES.MEMBER,
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
-    validate(updateReportSchema),
-    updateReport
+  "/:reportId",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(updateReportSchema),
+  updateReport
 );
 
 export default router;

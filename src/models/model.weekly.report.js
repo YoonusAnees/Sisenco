@@ -228,6 +228,7 @@ const achievementSchema =
         }
     );
 
+
 const hoursBreakdownSchema =
     new mongoose.Schema(
         {
@@ -406,6 +407,39 @@ const weeklyReportSchema =
                 default: null,
             },
 
+            approvedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                default: null,
+            },
+
+            correctionRequestedAt: {
+                type: Date,
+                default: null,
+            },
+
+            correctionRequestedBy: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                default: null,
+            },
+
+            latestCorrectionNote: {
+                type: String,
+                trim: true,
+                maxlength: [
+                    2000,
+                    "Correction note cannot exceed 2000 characters",
+                ],
+                default: "",
+            },
+
+            submissionCount: {
+                type: Number,
+                min: 0,
+                default: 0,
+            },
+
             createdBy: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: "User",
@@ -418,6 +452,8 @@ const weeklyReportSchema =
                 ref: "User",
                 required: true,
             },
+
+
         },
         {
             timestamps: true,
