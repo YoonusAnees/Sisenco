@@ -375,6 +375,43 @@ export const requestCorrectionSchema = z.object({
     .strict(),
 });
 
+export const getReportVersionsSchema = z.object({
+  params: z.object({
+    reportId: objectIdSchema,
+  }),
+
+  query: z.object({
+    page: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .default(1),
+
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .default(10),
+  }),
+});
+
+export const getReportVersionSchema = z.object({
+  params: z.object({
+    reportId: objectIdSchema,
+
+    versionNumber: z.coerce
+      .number()
+      .int()
+      .min(
+        1,
+        "Version number must be at least 1"
+      ),
+  }),
+});
+
 export const approveReportSchema = z.object({
   params: reportWorkflowParamsSchema,
 });

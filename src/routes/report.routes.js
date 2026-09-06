@@ -14,6 +14,11 @@ import {
 } from "../controllers/report.workflow.controller.js";
 
 import {
+  getAllReportVersions,
+  getSingleReportVersion,
+} from "../controllers/report.version.controller.js";
+
+import {
   USER_ROLES,
 } from "../constants/constant.roles.js";
 
@@ -31,6 +36,8 @@ import {
   createReportSchema,
   getMyReportsSchema,
   getReportByIdSchema,
+  getReportVersionSchema,
+  getReportVersionsSchema,
   requestCorrectionSchema,
   submitReportSchema,
   updateReportSchema,
@@ -62,6 +69,7 @@ router.get(
   getMyReports
 );
 
+
 router.post(
   "/:reportId/submit",
   authorize(
@@ -71,6 +79,28 @@ router.post(
   ),
   validate(submitReportSchema),
   submitReport
+);
+
+router.get(
+  "/:reportId/versions",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(getReportVersionsSchema),
+  getAllReportVersions
+);
+
+router.get(
+  "/:reportId/versions/:versionNumber",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(getReportVersionSchema),
+  getSingleReportVersion
 );
 
 router.post(
