@@ -30,6 +30,11 @@ import {
   emitReportApproved,
 } from "./realtime.service.js";
 
+import {
+  sendChangesRequestedEmail,
+  sendReportApprovedEmail,
+} from "./workflow.email.service.js";
+
 const queuePopulation = [
   {
     path: "owner",
@@ -436,6 +441,21 @@ export const requestReportChanges = async ({
     review: createdReview,
   });
 
+  const primaryProject =
+    updatedReport.completedTasks?.[0]?.project ||
+    updatedReport.nextWeekTasks?.[0]?.project ||
+    updatedReport.blockers?.[0]?.project ||
+    updatedReport.hoursBreakdown?.[0]?.project ||
+    null;
+
+  sendChangesRequestedEmail({
+    report: updatedReport,
+    owner: updatedReport.owner,
+    manager: createdReview.reviewer,
+    project: primaryProject,
+    review: createdReview,
+  });
+
   return {
     report: updatedReport,
     review: createdReview,
@@ -558,6 +578,21 @@ export const approveReport = async ({
   emitReportApproved({
     report: updatedReport,
     ownerId: updatedReport.owner,
+    review: createdReview,
+  });
+
+  const primaryProject =
+    updatedReport.completedTasks?.[0]?.project ||
+    updatedReport.nextWeekTasks?.[0]?.project ||
+    updatedReport.blockers?.[0]?.project ||
+    updatedReport.hoursBreakdown?.[0]?.project ||
+    null;
+
+  sendReportApprovedEmail({
+    report: updatedReport,
+    owner: updatedReport.owner,
+    manager: createdReview.reviewer,
+    project: primaryProject,
     review: createdReview,
   });
 

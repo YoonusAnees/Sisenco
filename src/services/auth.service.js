@@ -1,6 +1,9 @@
 import { USER_ROLES } from "../constants/constant.roles.js";
 import User from "../models/model.user.js";
 import AppError from "../utils/AppError.js";
+import {
+  sendWelcomeEmail,
+} from "../services/workflow.email.service.js";
 
 const normalizeEmail = (email) => {
     return email.trim().toLowerCase();
@@ -36,6 +39,9 @@ export const registerUser = async ({
         // Public registration always creates a member.
         role: USER_ROLES.MEMBER,
     });
+
+    await sendWelcomeEmail(user);
+
 
     return user;
 };
