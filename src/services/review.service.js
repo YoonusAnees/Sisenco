@@ -25,6 +25,11 @@ import {
   createChangesRequestedNotification,
 } from "./notification.service.js";
 
+import {
+  emitChangesRequested,
+  emitReportApproved,
+} from "./realtime.service.js";
+
 const queuePopulation = [
   {
     path: "owner",
@@ -425,6 +430,12 @@ export const requestReportChanges = async ({
     ]),
   ]);
 
+  emitChangesRequested({
+    report: updatedReport,
+    ownerId: updatedReport.owner,
+    review: createdReview,
+  });
+
   return {
     report: updatedReport,
     review: createdReview,
@@ -543,6 +554,12 @@ export const approveReport = async ({
       },
     ]),
   ]);
+
+  emitReportApproved({
+    report: updatedReport,
+    ownerId: updatedReport.owner,
+    review: createdReview,
+  });
 
   return {
     report: updatedReport,

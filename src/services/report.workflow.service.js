@@ -8,7 +8,12 @@ import {
 
 import {
   createSubmissionNotifications,
+  getReportReviewerIds,
 } from "./notification.service.js";
+
+import {
+  emitReportSubmitted,
+} from "./realtime.service.js";
 
 import { Project, WeeklyReport, ReportVersion } from "../models/index.js";
 
@@ -357,6 +362,18 @@ export const submitWeeklyReport = async ({
             select: "name code category status",
         },
     ]);
+
+    const recipientIds = await getReportReviewerIds({
+        report: submittedReport,
+    });
+
+    emitReportSubmitted({
+        report: submittedReport,
+        recipientIds,
+        isResubmission:
+            submittedReport.submissionCount > 1 ||
+            submittedReport.currentVersion > 1,
+    });
 
     return submittedReport;
 };

@@ -53,6 +53,10 @@ export const env = Object.freeze({
         return process.env.JWT_EXPIRES_IN || "7d";
     },
 
+    get jwtCookieName() {
+        return process.env.JWT_COOKIE_NAME || "sisenco_jwt";
+    },
+
     get cookieName() {
         return process.env.COOKIE_NAME || "weekly_report_token";
     },

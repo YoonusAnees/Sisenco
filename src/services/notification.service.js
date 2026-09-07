@@ -10,6 +10,12 @@ import {Notification , Project , User} from
   "../models/index.js";
 
 
+  import {
+  emitNotification,
+  emitAllNotificationsRead,
+  emitNotificationRead,
+} from "./realtime.service.js";
+
 
 import AppError from "../utils/AppError.js";
 
@@ -69,6 +75,9 @@ export const createNotifications = async ({
         session,
       }
     );
+    
+  emitNotification(session);
+
 
   return created;
 };
@@ -366,6 +375,12 @@ export const markNotificationAsRead =
       notificationPopulation
     );
 
+    emitNotificationRead({
+      recipientId:currentUserId,
+      notification,
+    });
+
+
     return notification;
   };
 
@@ -384,6 +399,12 @@ export const markAllNotificationsAsRead =
           },
         }
       );
+
+    emitAllNotificationsRead({
+      recipientId: currentUserId,
+      modifiedCount:result.modifiedCount,
+    });
+
 
     return {
       modifiedCount:
