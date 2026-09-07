@@ -20,6 +20,11 @@ import {
   getWeeklyReportById,
 } from "./report.service.js";
 
+import {
+  createApprovalNotification,
+  createChangesRequestedNotification,
+} from "./notification.service.js";
+
 const queuePopulation = [
   {
     path: "owner",
@@ -383,6 +388,17 @@ export const requestReportChanges = async ({
           session,
         });
 
+        /*
+         * Notify the report owner that changes
+         * have been requested.
+         */
+        await createChangesRequestedNotification({
+          report,
+          review,
+          actorId: currentUser.id,
+          session,
+        });
+
         createdReview = review;
         updatedReport = report;
       }
@@ -492,6 +508,13 @@ export const approveReport = async ({
         report.updatedBy = currentUser.id;
 
         await report.save({
+          session,
+        });
+        
+        await createApprovalNotification({
+          report,
+          review,
+          actorId: currentUser.id,
           session,
         });
 

@@ -1,442 +1,460 @@
 import {
-  REPORT_STATUSES,
+    REPORT_STATUSES,
 } from "../constants/constant.reports.js";
 
 import {
-  USER_ROLES,
+    USER_ROLES,
 } from "../constants/constant.roles.js";
 
-import {Project} from "../models/index.js";
-import {WeeklyReport} from "../models/index.js";
-import {ReportVersion} from "../models/index.js";
+import {
+  createSubmissionNotifications,
+} from "./notification.service.js";
+
+import { Project, WeeklyReport, ReportVersion } from "../models/index.js";
+
 import AppError from "../utils/AppError.js";
 
 const workflowPopulation = [
-  {
-    path: "owner",
-    select:
-      "name email role department jobTitle isActive",
-  },
-  {
-    path: "createdBy",
-    select: "name email role",
-  },
-  {
-    path: "updatedBy",
-    select: "name email role",
-  },
-  {
-    path: "approvedBy",
-    select: "name email role",
-  },
-  {
-    path: "correctionRequestedBy",
-    select: "name email role",
-  },
-  {
-    path: "completedTasks.project",
-    select: "name code category status manager",
-  },
-  {
-    path: "nextWeekTasks.project",
-    select: "name code category status manager",
-  },
-  {
-    path: "blockers.project",
-    select: "name code category status manager",
-  },
-  {
-    path: "achievements.project",
-    select: "name code category status manager",
-  },
-  {
-    path: "hoursBreakdown.project",
-    select: "name code category status manager",
-  },
+    {
+        path: "owner",
+        select:
+            "name email role department jobTitle isActive",
+    },
+    {
+        path: "createdBy",
+        select: "name email role",
+    },
+    {
+        path: "updatedBy",
+        select: "name email role",
+    },
+    {
+        path: "approvedBy",
+        select: "name email role",
+    },
+    {
+        path: "correctionRequestedBy",
+        select: "name email role",
+    },
+    {
+        path: "completedTasks.project",
+        select: "name code category status manager",
+    },
+    {
+        path: "nextWeekTasks.project",
+        select: "name code category status manager",
+    },
+    {
+        path: "blockers.project",
+        select: "name code category status manager",
+    },
+    {
+        path: "achievements.project",
+        select: "name code category status manager",
+    },
+    {
+        path: "hoursBreakdown.project",
+        select: "name code category status manager",
+    },
 ];
 
 const collectReportProjectIds = (report) => {
-  const projectIds = new Set();
+    const projectIds = new Set();
 
-  const sections = [
-    report.completedTasks || [],
-    report.nextWeekTasks || [],
-    report.blockers || [],
-    report.achievements || [],
-    report.hoursBreakdown || [],
-  ];
+    const sections = [
+        report.completedTasks || [],
+        report.nextWeekTasks || [],
+        report.blockers || [],
+        report.achievements || [],
+        report.hoursBreakdown || [],
+    ];
 
-  sections.forEach((section) => {
-    section.forEach((entry) => {
-      if (!entry.project) {
-        return;
-      }
+    sections.forEach((section) => {
+        section.forEach((entry) => {
+            if (!entry.project) {
+                return;
+            }
 
-      const projectId =
-        entry.project._id?.toString() ||
-        entry.project.toString();
+            const projectId =
+                entry.project._id?.toString() ||
+                entry.project.toString();
 
-      projectIds.add(projectId);
+            projectIds.add(projectId);
+        });
     });
-  });
 
-  return [...projectIds];
+    return [...projectIds];
 };
 
 const ensureReportIsComplete = (report) => {
-  if (!report.summary?.trim()) {
-    throw new AppError(
-      "A report summary is required before submission",
-      400
-    );
-  }
+    if (!report.summary?.trim()) {
+        throw new AppError(
+            "A report summary is required before submission",
+            400
+        );
+    }
 
-  const hasReportContent =
-    report.completedTasks.length > 0 ||
-    report.nextWeekTasks.length > 0 ||
-    report.blockers.length > 0 ||
-    report.achievements.length > 0;
+    const hasReportContent =
+        report.completedTasks.length > 0 ||
+        report.nextWeekTasks.length > 0 ||
+        report.blockers.length > 0 ||
+        report.achievements.length > 0;
 
-  if (!hasReportContent) {
-    throw new AppError(
-      "Add at least one task, blocker or achievement before submission",
-      400
-    );
-  }
+    if (!hasReportContent) {
+        throw new AppError(
+            "Add at least one task, blocker or achievement before submission",
+            400
+        );
+    }
 
-  if (report.hoursBreakdown.length === 0) {
-    throw new AppError(
-      "An hours breakdown is required before submission",
-      400
-    );
-  }
+    if (report.hoursBreakdown.length === 0) {
+        throw new AppError(
+            "An hours breakdown is required before submission",
+            400
+        );
+    }
 };
 
 const ensureReviewerPermission = async ({
-  report,
-  currentUser,
+    report,
+    currentUser,
 }) => {
-  if (currentUser.role === USER_ROLES.ADMIN) {
-    return;
-  }
+    if (currentUser.role === USER_ROLES.ADMIN) {
+        return;
+    }
 
-  if (currentUser.role !== USER_ROLES.MANAGER) {
-    throw new AppError(
-      "Only a project manager or administrator can review reports",
-      403
-    );
-  }
+    if (currentUser.role !== USER_ROLES.MANAGER) {
+        throw new AppError(
+            "Only a project manager or administrator can review reports",
+            403
+        );
+    }
 
-  const projectIds =
-    collectReportProjectIds(report);
+    const projectIds =
+        collectReportProjectIds(report);
 
-  if (projectIds.length === 0) {
-    throw new AppError(
-      "This report does not contain a reviewable project",
-      400
-    );
-  }
+    if (projectIds.length === 0) {
+        throw new AppError(
+            "This report does not contain a reviewable project",
+            400
+        );
+    }
 
-  /*
-   * Find every project referenced by the report.
-   */
-  const projects = await Project.find({
-    _id: {
-      $in: projectIds,
-    },
-  }).select("_id manager");
+    /*
+     * Find every project referenced by the report.
+     */
+    const projects = await Project.find({
+        _id: {
+            $in: projectIds,
+        },
+    }).select("_id manager");
 
-  if (projects.length !== projectIds.length) {
-    throw new AppError(
-      "One or more report projects no longer exist",
-      400
-    );
-  }
+    if (projects.length !== projectIds.length) {
+        throw new AppError(
+            "One or more report projects no longer exist",
+            400
+        );
+    }
 
-  /*
-   * The manager must manage every project
-   * referenced in this report.
-   *
-   * Admins are not affected by this restriction.
-   */
-  const unauthorisedProject =
-    projects.find((project) => {
-      return (
-        project.manager?.toString() !==
-        currentUser.id.toString()
-      );
-    });
+    /*
+     * The manager must manage every project
+     * referenced in this report.
+     *
+     * Admins are not affected by this restriction.
+     */
+    const unauthorisedProject =
+        projects.find((project) => {
+            return (
+                project.manager?.toString() !==
+                currentUser.id.toString()
+            );
+        });
 
-  if (unauthorisedProject) {
-    throw new AppError(
-      "You cannot review a report containing projects you do not manage",
-      403
-    );
-  }
+    if (unauthorisedProject) {
+        throw new AppError(
+            "You cannot review a report containing projects you do not manage",
+            403
+        );
+    }
 };
 
 export const submitWeeklyReport = async ({
-  reportId,
-  currentUser,
+    reportId,
+    currentUser,
 }) => {
-  const session =
-    await mongoose.startSession();
+    const session =
+        await mongoose.startSession();
 
-  let submittedReport;
+    let submittedReport;
 
-  try {
-    await session.withTransaction(
-      async () => {
-        const report =
-          await WeeklyReport.findById(
-            reportId
-          ).session(session);
+    try {
+        await session.withTransaction(
+            async () => {
+                const report =
+                    await WeeklyReport.findById(
+                        reportId
+                    ).session(session);
 
-        if (!report) {
-          throw new AppError(
-            "Weekly report not found",
-            404
-          );
-        }
+                if (!report) {
+                    throw new AppError(
+                        "Weekly report not found",
+                        404
+                    );
+                }
 
-        if (
-          report.owner.toString() !==
-          currentUser.id.toString()
-        ) {
-          throw new AppError(
-            "You can only submit your own report",
-            403
-          );
-        }
+                if (
+                    report.owner.toString() !==
+                    currentUser.id.toString()
+                ) {
+                    throw new AppError(
+                        "You can only submit your own report",
+                        403
+                    );
+                }
 
-        const allowedStatuses = [
-          REPORT_STATUSES.DRAFT,
-          REPORT_STATUSES.NEEDS_CORRECTION,
-        ];
+                const allowedStatuses = [
+                    REPORT_STATUSES.DRAFT,
+                    REPORT_STATUSES.NEEDS_CORRECTION,
+                ];
 
-        if (
-          !allowedStatuses.includes(
-            report.status
-          )
-        ) {
-          throw new AppError(
-            "Only draft or corrected reports can be submitted",
-            400
-          );
-        }
+                if (
+                    !allowedStatuses.includes(
+                        report.status
+                    )
+                ) {
+                    throw new AppError(
+                        "Only draft or corrected reports can be submitted",
+                        400
+                    );
+                }
 
-        /*
-         * Prevent empty weekly reports from
-         * being submitted.
-         */
-        const hasReportContent =
-          report.summary ||
-          report.completedTasks.length > 0 ||
-          report.nextWeekTasks.length > 0 ||
-          report.blockers.length > 0 ||
-          report.achievements.length > 0 ||
-          report.hoursBreakdown.length > 0;
+                /*
+                 * Prevent empty weekly reports from
+                 * being submitted.
+                 */
+                const hasReportContent =
+                    report.summary ||
+                    report.completedTasks.length > 0 ||
+                    report.nextWeekTasks.length > 0 ||
+                    report.blockers.length > 0 ||
+                    report.achievements.length > 0 ||
+                    report.hoursBreakdown.length > 0;
 
-        if (!hasReportContent) {
-          throw new AppError(
-            "An empty weekly report cannot be submitted",
-            400
-          );
-        }
+                if (!hasReportContent) {
+                    throw new AppError(
+                        "An empty weekly report cannot be submitted",
+                        400
+                    );
+                }
 
-        const sourceStatus = report.status;
+                const sourceStatus = report.status;
 
-        const nextVersion =
-          (report.currentVersion || 0) + 1;
+                const isResubmission =
+                    sourceStatus ===
+                    REPORT_STATUSES.NEEDS_CORRECTION;
 
-        const submittedAt = new Date();
+                const nextVersion =
+                    (report.currentVersion || 0) + 1;
 
-        /*
-         * Change the main report state.
-         */
-        report.status =
-          REPORT_STATUSES.SUBMITTED;
+                const submittedAt = new Date();
 
-        report.currentVersion =
-          nextVersion;
+                /*
+                 * Change the main report state.
+                 */
+                report.status =
+                    REPORT_STATUSES.SUBMITTED;
 
-        report.submittedAt =
-          submittedAt;
+                report.currentVersion =
+                    nextVersion;
 
-        /*
-         * A corrected resubmission must clear
-         * the old approval information.
-         */
-        report.approvedAt = null;
-        report.updatedBy = currentUser.id;
+                report.submittedAt =
+                    submittedAt;
 
-        await report.save({
-          session,
-        });
+                /*
+                 * A corrected resubmission must clear
+                 * the old approval information.
+                 */
+                report.approvedAt = null;
+                report.updatedBy = currentUser.id;
 
-        /*
-         * Convert the report into an independent
-         * plain object for historical storage.
-         */
-        const snapshot = report.toObject({
-          depopulate: true,
-          virtuals: false,
-          versionKey: false,
-        });
+                await report.save({
+                    session,
+                });
 
-        delete snapshot._id;
+                /*
+                 * Convert the report into an independent
+                 * plain object for historical storage.
+                 */
+                const snapshot = report.toObject({
+                    depopulate: true,
+                    virtuals: false,
+                    versionKey: false,
+                });
 
-        await ReportVersion.create(
-          [
-            {
-              report: report._id,
-              owner: report.owner,
-              versionNumber:
-                nextVersion,
-              sourceStatus,
-              snapshot,
-              submittedBy:
-                currentUser.id,
-              submittedAt,
-            },
-          ],
-          {
-            session,
-          }
+                delete snapshot._id;
+
+                await ReportVersion.create(
+                    [
+                        {
+                            report: report._id,
+                            owner: report.owner,
+                            versionNumber:
+                                nextVersion,
+                            sourceStatus,
+                            snapshot,
+                            submittedBy:
+                                currentUser.id,
+                            submittedAt,
+                        },
+                    ],
+                    {
+                        session,
+                    }
+                );
+
+                /*
+                 * Notify relevant parties (managers, admins)
+                 * about the new submission.
+                 */
+                await createSubmissionNotifications({
+                    report,
+                    actorId: currentUser.id,
+                    isResubmission,
+                    session,
+});
+
+                submittedReport = report;
+            }
         );
+    } finally {
+        await session.endSession();
+    }
 
-        submittedReport = report;
-      }
-    );
-  } finally {
-    await session.endSession();
-  }
+    await submittedReport.populate([
+        {
+            path: "owner",
+            select:
+                "name email role department jobTitle",
+        },
+        {
+            path: "completedTasks.project",
+            select: "name code category status",
+        },
+        {
+            path: "nextWeekTasks.project",
+            select: "name code category status",
+        },
+        {
+            path: "blockers.project",
+            select: "name code category status",
+        },
+        {
+            path: "achievements.project",
+            select: "name code category status",
+        },
+        {
+            path: "hoursBreakdown.project",
+            select: "name code category status",
+        },
+    ]);
 
-  await submittedReport.populate([
-    {
-      path: "owner",
-      select:
-        "name email role department jobTitle",
-    },
-    {
-      path: "completedTasks.project",
-      select: "name code category status",
-    },
-    {
-      path: "nextWeekTasks.project",
-      select: "name code category status",
-    },
-    {
-      path: "blockers.project",
-      select: "name code category status",
-    },
-    {
-      path: "achievements.project",
-      select: "name code category status",
-    },
-    {
-      path: "hoursBreakdown.project",
-      select: "name code category status",
-    },
-  ]);
-
-  return submittedReport;
+    return submittedReport;
 };
 
 export const requestReportCorrection =
-  async ({
+    async ({
+        reportId,
+        correctionNote,
+        currentUser,
+    }) => {
+        const report =
+            await WeeklyReport.findById(reportId);
+
+        if (!report) {
+            throw new AppError(
+                "Weekly report not found",
+                404
+            );
+        }
+
+        if (
+            report.status !==
+            REPORT_STATUSES.SUBMITTED
+        ) {
+            throw new AppError(
+                "Only submitted reports can be returned for correction",
+                400
+            );
+        }
+
+        await ensureReviewerPermission({
+            report,
+            currentUser,
+        });
+
+        report.status =
+            REPORT_STATUSES.NEEDS_CORRECTION;
+
+        report.latestCorrectionNote =
+            correctionNote;
+
+        report.correctionRequestedAt =
+            new Date();
+
+        report.correctionRequestedBy =
+            currentUser.id;
+
+        report.updatedBy = currentUser.id;
+
+        await report.save();
+
+        await report.populate(
+            workflowPopulation
+        );
+
+        return report;
+    };
+
+export const approveWeeklyReport = async ({
     reportId,
-    correctionNote,
     currentUser,
-  }) => {
-    const report =
-      await WeeklyReport.findById(reportId);
+}) => {
+    const report = await WeeklyReport.findById(
+        reportId
+    );
 
     if (!report) {
-      throw new AppError(
-        "Weekly report not found",
-        404
-      );
+        throw new AppError(
+            "Weekly report not found",
+            404
+        );
     }
 
     if (
-      report.status !==
-      REPORT_STATUSES.SUBMITTED
+        report.status !==
+        REPORT_STATUSES.SUBMITTED
     ) {
-      throw new AppError(
-        "Only submitted reports can be returned for correction",
-        400
-      );
+        throw new AppError(
+            "Only submitted reports can be approved",
+            400
+        );
     }
 
     await ensureReviewerPermission({
-      report,
-      currentUser,
+        report,
+        currentUser,
     });
 
     report.status =
-      REPORT_STATUSES.NEEDS_CORRECTION;
+        REPORT_STATUSES.APPROVED;
 
-    report.latestCorrectionNote =
-      correctionNote;
-
-    report.correctionRequestedAt =
-      new Date();
-
-    report.correctionRequestedBy =
-      currentUser.id;
-
+    report.approvedAt = new Date();
+    report.approvedBy = currentUser.id;
     report.updatedBy = currentUser.id;
 
     await report.save();
 
-    await report.populate(
-      workflowPopulation
-    );
+    await report.populate(workflowPopulation);
 
     return report;
-  };
-
-export const approveWeeklyReport = async ({
-  reportId,
-  currentUser,
-}) => {
-  const report = await WeeklyReport.findById(
-    reportId
-  );
-
-  if (!report) {
-    throw new AppError(
-      "Weekly report not found",
-      404
-    );
-  }
-
-  if (
-    report.status !==
-    REPORT_STATUSES.SUBMITTED
-  ) {
-    throw new AppError(
-      "Only submitted reports can be approved",
-      400
-    );
-  }
-
-  await ensureReviewerPermission({
-    report,
-    currentUser,
-  });
-
-  report.status =
-    REPORT_STATUSES.APPROVED;
-
-  report.approvedAt = new Date();
-  report.approvedBy = currentUser.id;
-  report.updatedBy = currentUser.id;
-
-  await report.save();
-
-  await report.populate(workflowPopulation);
-
-  return report;
 };
