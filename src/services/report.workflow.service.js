@@ -15,7 +15,11 @@ import {
   emitReportSubmitted,
 } from "./realtime.service.js";
 
-import { Project, WeeklyReport, ReportVersion } from "../models/index.js";
+import {
+  sendReportSubmittedEmails,
+} from "./workflow.email.service.js";
+
+import { Project, WeeklyReport, ReportVersion, User } from "../models/index.js";
 
 import AppError from "../utils/AppError.js";
 
@@ -24,6 +28,10 @@ const workflowPopulation = [
         path: "owner",
         select:
             "name email role department jobTitle isActive",
+    },
+    {
+    path: "project",
+    select: "name code manager",
     },
     {
         path: "createdBy",
@@ -367,12 +375,37 @@ export const submitWeeklyReport = async ({
         report: submittedReport,
     });
 
+    const isResubmission =
+        submittedReport.submissionCount > 1 ||
+        submittedReport.currentVersion > 1;
+
     emitReportSubmitted({
         report: submittedReport,
         recipientIds,
-        isResubmission:
-            submittedReport.submissionCount > 1 ||
-            submittedReport.currentVersion > 1,
+        isResubmission,
+    });
+
+    /*
+     * Send email notifications to reviewers after transaction commits.
+     */
+    const recipientUsers = await User.find({
+        _id: { $in: recipientIds },
+        isActive: true,
+    }).select("name email");
+
+    const primaryProject =
+        submittedReport.completedTasks?.[0]?.project ||
+        submittedReport.nextWeekTasks?.[0]?.project ||
+        submittedReport.blockers?.[0]?.project ||
+        submittedReport.hoursBreakdown?.[0]?.project ||
+        null;
+
+    sendReportSubmittedEmails({
+        recipients: recipientUsers,
+        report: submittedReport,
+        owner: submittedReport.owner,
+        project: primaryProject,
+        isResubmission,
     });
 
     return submittedReport;

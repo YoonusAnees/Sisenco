@@ -6,7 +6,13 @@ const requiredVariables = [
 ];
 
 export const validateEnvironment = () => {
-    const missingVariables = requiredVariables.filter(
+    const varsToCheck = [...requiredVariables];
+
+    if (env.emailEnabled) {
+        varsToCheck.push("BREVO_API_KEY", "BREVO_SENDER_EMAIL");
+    }
+
+    const missingVariables = varsToCheck.filter(
         (variable) => !process.env[variable]
     );
 
@@ -16,7 +22,7 @@ export const validateEnvironment = () => {
         );
     }
 
-    if (process.env.JWT_SECRET.length < 32) {
+    if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
         throw new Error(
             "JWT_SECRET must contain at least 32 characters"
         );
@@ -67,5 +73,25 @@ export const env = Object.freeze({
 
     get adminRegistrationSecret() {
         return process.env.ADMIN_REGISTRATION_SECRET;
+    },
+
+    get brevoApiKey() {
+        return process.env.BREVO_API_KEY || "";
+    },
+
+    get brevoSenderName() {
+        return process.env.BREVO_SENDER_NAME || "Weekly Report System"
+    },
+
+    get brevoSenderEmail() {
+        return process.env.BREVO_SENDER_EMAIL || "";
+    },
+
+    get emailEnabled() {
+        return process.env.EMAIL_ENABLED === "true";
+    },
+
+    get emailTestRecipient() {
+        return process.env.EMAIL_TEST_RECIPIENT || "";
     },
 });

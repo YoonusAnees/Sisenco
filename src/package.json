@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "jest"
+    "test": "jest",
+    "email:test": "node scripts/testBrevoEmail.js",
+    "email:overdue": "node jobs/sendOverdueReportReminders.js"
   },
   "keywords": [],
   "author": "",
