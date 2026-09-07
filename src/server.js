@@ -12,6 +12,12 @@ import {
     validateEnvironment,
 } from "./config/environment.js";
 
+
+import {
+    closeSocketServer,
+    initializeSocketServer,
+} from "./socket/socket.server.js";
+
 let httpServer;
 
 const startServer = async () => {
@@ -32,6 +38,8 @@ const startServer = async () => {
      */
     httpServer = createServer(app);
 
+    initializeSocketServer(httpServer);
+
     httpServer.listen(env.port, env.host, () => {
         console.log(
             `Server running on http://${env.host}:${env.port}`
@@ -43,6 +51,8 @@ const shutdownServer = async (signal) => {
     console.log(
         `${signal} received. Closing server gracefully.`
     );
+
+    closeSocketServer();
 
     /*
      * Stop accepting new HTTP requests.
