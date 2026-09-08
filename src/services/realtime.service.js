@@ -46,6 +46,7 @@ export const emitNotification = (
     notification
 ) => {
     const io = getSocketServer();
+    if (!io) return;
 
     const recipientId = normalizeId(
         notification.recipient
@@ -88,6 +89,7 @@ export const emitNotificationRead = ({
     notification,
 }) => {
     const io = getSocketServer();
+    if (!io) return;
 
     io.to(
         getUserRoom(recipientId)
@@ -111,6 +113,7 @@ export const emitAllNotificationsRead = ({
     updatedCount,
 }) => {
     const io = getSocketServer();
+    if (!io) return;
 
     io.to(
         getUserRoom(recipientId)
@@ -134,6 +137,7 @@ export const emitReportSubmitted = ({
     isResubmission = false,
 }) => {
     const io = getSocketServer();
+    if (!io) return;
 
     const eventName = isResubmission
         ? SOCKET_EVENTS.REPORT_RESUBMITTED
@@ -183,6 +187,7 @@ export const emitChangesRequested = ({
     review,
 }) => {
     const io = getSocketServer();
+    if (!io) return;
 
     io.to(
         getUserRoom(ownerId)
@@ -213,6 +218,7 @@ export const emitReportApproved = ({
     review,
 }) => {
     const io = getSocketServer();
+    if (!io) return;
 
     io.to(
         getUserRoom(ownerId)

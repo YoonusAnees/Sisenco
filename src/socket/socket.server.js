@@ -93,9 +93,7 @@ export const initializeSocketServer = (
 
 export const getSocketServer = () => {
     if (!io) {
-        throw new Error(
-            "Socket.IO has not been initialized"
-        );
+        return null;
     }
 
     return io;
