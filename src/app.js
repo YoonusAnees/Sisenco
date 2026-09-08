@@ -3,7 +3,18 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import mongoose from "mongoose";
 import morgan from "morgan";
+
+import slstDatePlugin from "./utils/slstDatePlugin.js";
+
+/*
+ * Apply the SLST date plugin globally BEFORE any model is compiled.
+ * This makes every Mongoose document's toJSON() return Date fields as
+ * Sri Lanka Standard Time ISO strings (e.g. "2026-09-08T16:19:52.548+05:30")
+ * instead of UTC ("Z").
+ */
+mongoose.plugin(slstDatePlugin);
 
 import {
     env,

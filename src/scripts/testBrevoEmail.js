@@ -45,7 +45,7 @@ const testBrevoEmail = async () => {
                     <p>This is a test email sent from the <strong>Weekly Report System</strong> backend.</p>
                     <p>If you are receiving this, your Brevo API key and sender email configuration are working correctly!</p>
                     <hr />
-                    <p style="color: #666; font-size: 12px;">Sent at: ${new Date().toISOString()}</p>
+                    <p style="color: #666; font-size: 12px;">Sent at: ${new Date().toLocaleString("en-GB", { timeZone: "Asia/Colombo" })} (Sri Lanka Time)</p>
                 </div>
             `,
 

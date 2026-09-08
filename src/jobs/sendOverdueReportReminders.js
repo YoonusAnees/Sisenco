@@ -25,9 +25,14 @@ import {
     sendOverdueReportEmail,
 } from "../services/workflow.email.service.js";
 
+import {
+    todayInSriLanka,
+} from "../utils/emailHelpers.js";
+
 const getPreviousMonday = () => {
-    const now = new Date();
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    // Determine "today" in Sri Lanka Standard Time (UTC+5:30)
+    const todayStr = todayInSriLanka(); // e.g. "2025-09-08"
+    const date = new Date(`${todayStr}T00:00:00.000Z`);
 
     // Get UTC day (0 = Sunday, 1 = Monday, ...)
     const day = date.getUTCDay();
