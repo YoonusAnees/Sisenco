@@ -34,8 +34,11 @@ export const requestChanges =
       const { reportId } =
         request.validated.params;
 
-      const { comment } =
-        request.validated.body;
+      const comment =
+        request.validated.body?.comment ||
+        request.validated.body?.note ||
+        request.validated.body?.correctionNote ||
+        "";
 
       const result =
         await requestReportChanges({
@@ -62,8 +65,10 @@ export const approve =
       const { reportId } =
         request.validated.params;
 
-      const { comment } =
-        request.validated.body;
+      const comment =
+        request.validated.body?.comment ||
+        request.validated.body?.note ||
+        "";
 
       const result = await approveReport({
         reportId,

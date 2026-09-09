@@ -11,19 +11,18 @@
  */
 export const getReportingWeek = (weekOffset = 0) => {
   const now = new Date();
-  const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday, ...
+  const dayOfWeek = now.getUTCDay(); // 0 is Sunday, 1 is Monday, ...
   
-  // Calculate distance to current week's Monday
-  // If Sunday (0), Monday was 6 days ago. If Monday (1), Monday is today (0 days ago).
+  // Calculate distance to current week's Monday in UTC
   const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   
   const monday = new Date(now);
-  monday.setDate(now.getDate() + diffToMonday + weekOffset * 7);
-  monday.setHours(0, 0, 0, 0);
+  monday.setUTCDate(now.getUTCDate() + diffToMonday + weekOffset * 7);
+  monday.setUTCHours(0, 0, 0, 0);
 
   const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  sunday.setUTCHours(23, 59, 59, 999);
 
   return {
     weekStart: monday,

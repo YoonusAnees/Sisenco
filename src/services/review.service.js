@@ -15,6 +15,7 @@ import {
 import {Project, ReportVersion, Review, WeeklyReport} from "../models/index.js";
 
 import AppError from "../utils/AppError.js";
+import { runTransaction } from "../utils/transaction.helper.js";
 
 import {
   getWeeklyReportById,
@@ -321,19 +322,15 @@ export const requestReportChanges = async ({
   comment,
   currentUser,
 }) => {
-  const session =
-    await mongoose.startSession();
-
   let updatedReport;
   let createdReview;
 
-  try {
-    await session.withTransaction(
-      async () => {
-        const report =
-          await WeeklyReport.findById(
-            reportId
-          ).session(session);
+  await runTransaction(async (session) => {
+    const query = WeeklyReport.findById(reportId);
+    if (session) {
+      query.session(session);
+    }
+    const report = await query;
 
         if (!report) {
           throw new AppError(
@@ -382,9 +379,7 @@ export const requestReportChanges = async ({
                 reviewedAt,
               },
             ],
-            {
-              session,
-            }
+            session ? { session } : undefined
           );
 
         report.status =
@@ -394,9 +389,7 @@ export const requestReportChanges = async ({
         report.approvedAt = null;
         report.updatedBy = currentUser.id;
 
-        await report.save({
-          session,
-        });
+        await report.save(session ? { session } : undefined);
 
         /*
          * Notify the report owner that changes
@@ -411,11 +404,7 @@ export const requestReportChanges = async ({
 
         createdReview = review;
         updatedReport = report;
-      }
-    );
-  } finally {
-    await session.endSession();
-  }
+  });
 
   await Promise.all([
     updatedReport.populate(
@@ -467,19 +456,15 @@ export const approveReport = async ({
   comment,
   currentUser,
 }) => {
-  const session =
-    await mongoose.startSession();
-
   let updatedReport;
   let createdReview;
 
-  try {
-    await session.withTransaction(
-      async () => {
-        const report =
-          await WeeklyReport.findById(
-            reportId
-          ).session(session);
+  await runTransaction(async (session) => {
+    const query = WeeklyReport.findById(reportId);
+    if (session) {
+      query.session(session);
+    }
+    const report = await query;
 
         if (!report) {
           throw new AppError(
@@ -527,9 +512,7 @@ export const approveReport = async ({
                 reviewedAt,
               },
             ],
-            {
-              session,
-            }
+            session ? { session } : undefined
           );
 
         report.status =
@@ -538,9 +521,7 @@ export const approveReport = async ({
         report.approvedAt = reviewedAt;
         report.updatedBy = currentUser.id;
 
-        await report.save({
-          session,
-        });
+        await report.save(session ? { session } : undefined);
         
         await createApprovalNotification({
           report,
@@ -551,11 +532,7 @@ export const approveReport = async ({
 
         createdReview = review;
         updatedReport = report;
-      }
-    );
-  } finally {
-    await session.endSession();
-  }
+  });
 
   await Promise.all([
     updatedReport.populate(

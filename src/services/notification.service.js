@@ -76,8 +76,9 @@ export const createNotifications = async ({
       }
     );
     
-  emitNotification(session);
-
+  created.forEach((notification) => {
+    emitNotification(notification);
+  });
 
   return created;
 };

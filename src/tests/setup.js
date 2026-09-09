@@ -10,9 +10,14 @@ process.env.EMAIL_ENABLED = "false";
 process.env.JWT_SECRET = "test_jwt_secret_that_is_at_least_32_characters_long_for_security";
 process.env.COOKIE_NAME = "weekly_report_token";
 process.env.ADMIN_REGISTRATION_SECRET = "test_admin_setup_secret";
+process.env.MONGOMS_STARTUP_TIMEOUT = "60000";
+
+jest.setTimeout(60000);
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
+  mongoServer = await MongoMemoryServer.create({
+    instance: { startupTimeout: 60000 },
+  });
   const mongoUri = mongoServer.getUri();
 
   if (mongoose.connection.readyState !== 0) {

@@ -259,3 +259,50 @@ export const overdueReportEmailTemplate = ({
         }),
     };
 };
+
+export const projectAssignedEmailTemplate = ({
+    memberName,
+    assignerName,
+    projectName,
+    projectCode,
+    projectRole,
+    projectUrl,
+}) => {
+    return {
+        subject: `You have been assigned to project: ${projectName}`,
+
+        htmlContent: emailLayout({
+            previewText:
+                `You have been added to the ${projectName} project`,
+
+            heading: "Project Assignment",
+
+            body: `
+        <p>Hello ${escapeHtml(memberName)},</p>
+
+        <p>
+          You have been assigned to a project by
+          <strong>${escapeHtml(assignerName)}</strong>.
+        </p>
+
+        <p>
+          <strong>Project:</strong>
+          ${escapeHtml(projectName)}
+          (${escapeHtml(projectCode)})
+          <br />
+
+          <strong>Your role:</strong>
+          ${escapeHtml(projectRole)}
+        </p>
+
+        <p>
+          You can now submit weekly reports for this project.
+          Please head to the project page to get started.
+        </p>
+      `,
+
+            actionText: "View project",
+            actionUrl: projectUrl,
+        }),
+    };
+};

@@ -462,7 +462,7 @@ const weeklyReportSchema =
 
         },
 
-        
+
         {
             timestamps: true,
             versionKey: false,
@@ -480,6 +480,33 @@ const weeklyReportSchema =
             },
         }
     );
+
+weeklyReportSchema.virtual("weekNumber").get(function () {
+    if (!this.weekStart) {
+        return undefined;
+    }
+    const d = new Date(this.weekStart);
+    const target = new Date(d.valueOf());
+    const dayNr = (d.getUTCDay() + 6) % 7;
+    target.setUTCDate(target.getUTCDate() - dayNr + 3);
+    const firstThursday = target.valueOf();
+    target.setUTCMonth(0, 1);
+    if (target.getUTCDay() !== 4) {
+        target.setUTCMonth(0, 1 + ((4 - target.getUTCDay()) + 7) % 7);
+    }
+    return 1 + Math.ceil((firstThursday - target) / 604800000);
+});
+
+weeklyReportSchema.virtual("year").get(function () {
+    if (!this.weekStart) {
+        return undefined;
+    }
+    return new Date(this.weekStart).getUTCFullYear();
+});
+
+weeklyReportSchema.virtual("ownerId").get(function () {
+    return this.owner;
+});
 
 /*
  * One user can create only one report

@@ -35,6 +35,18 @@ describe("Project Management Endpoints (/api/v1/projects)", () => {
       expect(response.body.data.project.code).toBe("NEW-PORTAL");
     });
 
+    it("rejects project creation without an assigned manager", async () => {
+      const response = await request(app)
+        .post("/api/v1/projects")
+        .set("Cookie", [adminCookie])
+        .send({
+          name: "Managerless Project",
+          code: "NO-MGR",
+        });
+
+      expect(response.status).toBe(400);
+    });
+
     it("rejects duplicate project code", async () => {
       await createProject(admin, manager, { code: "DUP-CODE" });
 
@@ -44,6 +56,7 @@ describe("Project Management Endpoints (/api/v1/projects)", () => {
         .send({
           name: "Another Project",
           code: "DUP-CODE",
+          managerId: manager._id.toString(),
         });
 
       expect(response.status).toBe(409);
@@ -56,6 +69,7 @@ describe("Project Management Endpoints (/api/v1/projects)", () => {
         .send({
           name: "Invalid Dates",
           code: "BAD-DATES",
+          managerId: manager._id.toString(),
           startDate: "2026-12-31",
           endDate: "2026-01-01",
         });

@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 
 import {
     changeUserRole,
@@ -69,12 +69,19 @@ router.get(
     getSingleUser
 );
 
+
 /*
- * Only admin can update user details.
+ * Any authenticated user can update a user record.
+ * The controller enforces that non-admins can only
+ * update their own profile.
  */
 router.patch(
     "/:userId",
-    authorize(USER_ROLES.ADMIN),
+    authorize(
+        USER_ROLES.MEMBER,
+        USER_ROLES.MANAGER,
+        USER_ROLES.ADMIN
+    ),
     validate(updateUserSchema),
     updateUser
 );
