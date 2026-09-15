@@ -28,27 +28,15 @@ import {
 
 const router = Router();
 
-/*
- * All user-management routes require login.
- */
 router.use(authenticate);
 
-/*
- * Manager and admin can view the user list.
- */
 router.get(
     "/",
-    authorize(
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
+    authorize(USER_ROLES.MANAGER, USER_ROLES.ADMIN),
     validate(getUsersSchema),
     getAllUsers
 );
 
-/*
- * Admin creates users.
- */
 router.post(
     "/",
     authorize(USER_ROLES.ADMIN),
@@ -56,39 +44,27 @@ router.post(
     createUser
 );
 
-/*
- * Manager and admin can view one user.
- */
 router.get(
     "/:userId",
-    authorize(
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
+    authorize(USER_ROLES.MANAGER, USER_ROLES.ADMIN),
     validate(getUserByIdSchema),
     getSingleUser
 );
 
-
-/*
- * Any authenticated user can update a user record.
- * The controller enforces that non-admins can only
- * update their own profile.
- */
 router.patch(
     "/:userId",
-    authorize(
-        USER_ROLES.MEMBER,
-        USER_ROLES.MANAGER,
-        USER_ROLES.ADMIN
-    ),
+    (request, response, next) => {
+        const currentUserId = (request.user?._id || request.user?.id)?.toString();
+        const targetUserId = request.params.userId?.toString();
+        const isSelf = Boolean(currentUserId && targetUserId && currentUserId === targetUserId);
+        const isAdmin = request.user?.role === USER_ROLES.ADMIN;
+        if (isSelf || isAdmin) return next();
+        return authorize(USER_ROLES.ADMIN)(request, response, next);
+    },
     validate(updateUserSchema),
     updateUser
 );
 
-/*
- * Only admin can change roles.
- */
 router.patch(
     "/:userId/role",
     authorize(USER_ROLES.ADMIN),
@@ -96,9 +72,6 @@ router.patch(
     changeUserRole
 );
 
-/*
- * Only admin can activate/deactivate users.
- */
 router.patch(
     "/:userId/status",
     authorize(USER_ROLES.ADMIN),
