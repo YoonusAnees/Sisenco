@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 import {
     REPORT_STATUSES,
 } from "../constants/constant.reports.js";
@@ -22,16 +24,13 @@ import {
 import { Project, WeeklyReport, ReportVersion, User } from "../models/index.js";
 
 import AppError from "../utils/AppError.js";
+import { runTransaction } from "../utils/transaction.helper.js";
 
 const workflowPopulation = [
     {
         path: "owner",
         select:
             "name email role department jobTitle isActive",
-    },
-    {
-    path: "project",
-    select: "name code manager",
     },
     {
         path: "createdBy",
@@ -195,18 +194,21 @@ export const submitWeeklyReport = async ({
     reportId,
     currentUser,
 }) => {
-    const session =
-        await mongoose.startSession();
+    if (currentUser.role !== USER_ROLES.MEMBER) {
+        throw new AppError(
+            "Only members can submit weekly reports. Managers and administrators review and approve reports submitted by members.",
+            403
+        );
+    }
 
     let submittedReport;
 
-    try {
-        await session.withTransaction(
-            async () => {
-                const report =
-                    await WeeklyReport.findById(
-                        reportId
-                    ).session(session);
+    await runTransaction(async (session) => {
+        const query = WeeklyReport.findById(reportId);
+        if (session) {
+            query.session(session);
+        }
+        const report = await query;
 
                 if (!report) {
                     throw new AppError(
@@ -290,9 +292,7 @@ export const submitWeeklyReport = async ({
                 report.approvedAt = null;
                 report.updatedBy = currentUser.id;
 
-                await report.save({
-                    session,
-                });
+                await report.save(session ? { session } : undefined);
 
                 /*
                  * Convert the report into an independent
@@ -320,9 +320,7 @@ export const submitWeeklyReport = async ({
                             submittedAt,
                         },
                     ],
-                    {
-                        session,
-                    }
+                    session ? { session } : undefined
                 );
 
                 /*
@@ -337,11 +335,7 @@ export const submitWeeklyReport = async ({
 });
 
                 submittedReport = report;
-            }
-        );
-    } finally {
-        await session.endSession();
-    }
+    });
 
     await submittedReport.populate([
         {

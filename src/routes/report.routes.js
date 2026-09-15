@@ -47,82 +47,67 @@ const router = Router();
 
 router.use(authenticate);
 
+/*
+ * ─── MEMBER-ONLY: report authoring ────────────────────────────────────────────
+ * Managers and admins are reviewers / approvers. They do not author reports.
+ */
+
+/*
+ * Create a draft weekly report.
+ */
 router.post(
   "/",
-  authorize(
-    USER_ROLES.MEMBER,
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
+  authorize(USER_ROLES.MEMBER),
   validate(createReportSchema),
   createReport
 );
 
+/*
+ * List the authenticated member's own reports.
+ */
 router.get(
   "/me",
-  authorize(
-    USER_ROLES.MEMBER,
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
+  authorize(USER_ROLES.MEMBER),
   validate(getMyReportsSchema),
   getMyReports
 );
 
-
+/*
+ * Submit (or resubmit) a draft report for review.
+ */
 router.post(
   "/:reportId/submit",
-  authorize(
-    USER_ROLES.MEMBER,
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
+  authorize(USER_ROLES.MEMBER),
   validate(submitReportSchema),
   submitReport
 );
 
-router.get(
-  "/:reportId/versions",
-  authorize(
-    USER_ROLES.MEMBER,
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
-  validate(getReportVersionsSchema),
-  getAllReportVersions
+/*
+ * Edit a draft or needs-correction report.
+ */
+router.patch(
+  "/:reportId",
+  authorize(USER_ROLES.MEMBER),
+  validate(updateReportSchema),
+  updateReport
 );
 
-router.get(
-  "/:reportId/versions/:versionNumber",
-  authorize(
-    USER_ROLES.MEMBER,
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
-  validate(getReportVersionSchema),
-  getSingleReportVersion
+router.put(
+  "/:reportId",
+  authorize(USER_ROLES.MEMBER),
+  validate(updateReportSchema),
+  updateReport
 );
 
-router.post(
-  "/:reportId/request-correction",
-  authorize(
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
-  validate(requestCorrectionSchema),
-  requestCorrection
-);
+/*
+ * ─── ALL ROLES: read ───────────────────────────────────────────────────────────
+ * Members can view their own reports; the service enforces that managers and
+ * admins can only view reports belonging to their projects / any project.
+ */
 
-router.post(
-  "/:reportId/approve",
-  authorize(
-    USER_ROLES.MANAGER,
-    USER_ROLES.ADMIN
-  ),
-  validate(approveReportSchema),
-  approveReport
-);
-
+/*
+ * Read a single report by ID.
+ */
 router.get(
   "/:reportId",
   authorize(
@@ -134,15 +119,62 @@ router.get(
   getSingleReport
 );
 
-router.patch(
-  "/:reportId",
+/*
+ * List all saved versions of a report.
+ */
+router.get(
+  "/:reportId/versions",
   authorize(
     USER_ROLES.MEMBER,
     USER_ROLES.MANAGER,
     USER_ROLES.ADMIN
   ),
-  validate(updateReportSchema),
-  updateReport
+  validate(getReportVersionsSchema),
+  getAllReportVersions
 );
 
-export default router;
+/*
+ * Read one specific version snapshot.
+ */
+router.get(
+  "/:reportId/versions/:versionNumber",
+  authorize(
+    USER_ROLES.MEMBER,
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(getReportVersionSchema),
+  getSingleReportVersion
+);
+
+/*
+ * ─── MANAGER / ADMIN: review actions ──────────────────────────────────────────
+ */
+
+/*
+ * Request corrections from the report author.
+ */
+router.post(
+  "/:reportId/request-correction",
+  authorize(
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(requestCorrectionSchema),
+  requestCorrection
+);
+
+/*
+ * Approve a submitted report.
+ */
+router.post(
+  "/:reportId/approve",
+  authorize(
+    USER_ROLES.MANAGER,
+    USER_ROLES.ADMIN
+  ),
+  validate(approveReportSchema),
+  approveReport
+);
+
+export default router;

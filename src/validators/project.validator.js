@@ -77,15 +77,22 @@ export const createProjectSchema = z.object({
                 .optional()
                 .default("other"),
 
-            managerId: objectIdSchema
-                .nullable()
-                .optional(),
+            managerId: objectIdSchema.optional(),
+            manager: objectIdSchema.optional(),
 
             startDate: optionalDateSchema,
 
             endDate: optionalDateSchema,
         })
         .strict()
+        .refine(
+            (body) => Boolean(body.managerId || body.manager),
+            {
+                message:
+                    "A project manager must be assigned when creating a project",
+                path: ["managerId"],
+            }
+        )
         .refine(
             (body) => {
                 if (!body.startDate || !body.endDate) {

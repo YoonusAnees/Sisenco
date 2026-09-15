@@ -1,6 +1,7 @@
 import {
   changesRequestedEmailTemplate,
   overdueReportEmailTemplate,
+  projectAssignedEmailTemplate,
   reportApprovedEmailTemplate,
   reportSubmittedEmailTemplate,
   welcomeEmailTemplate,
@@ -187,3 +188,32 @@ export const sendOverdueReportEmail =
       tags: ["report-overdue"],
     });
   };
+
+export const sendProjectAssignedEmail = async ({
+  member,
+  assigner,
+  project,
+  projectRole,
+}) => {
+  const projectUrl = `${env.clientUrl}/projects/${project._id}`;
+
+  const template = projectAssignedEmailTemplate({
+    memberName: member?.name || "Team Member",
+    assignerName: assigner?.name || "A manager",
+    projectName: project?.name || "Project",
+    projectCode: project?.code || "",
+    projectRole: projectRole || "member",
+    projectUrl,
+  });
+
+  return sendEmailSafely({
+    to: {
+      name: member.name,
+      email: member.email,
+    },
+
+    ...template,
+
+    tags: ["project-assigned"],
+  });
+};

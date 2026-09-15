@@ -9,7 +9,7 @@ import {
 } from "../constants/constant.roles.js";
 
 import {
-    Project, Review, WeeklyReport
+    Project, ProjectMember, Review, User, WeeklyReport
 } from "../models/index.js";
 
 import AppError from "../utils/AppError.js";
@@ -312,8 +312,14 @@ export const getDashboardSummary =
 
         return {
             totalReports,
-            ...statusCounts,
+            draft: statusCounts.draft,
+            submitted: statusCounts.submitted,
+            submittedReports: statusCounts.submitted,
             pendingReviews,
+            needsCorrection: statusCounts.needsCorrection,
+            needsCorrectionReports: statusCounts.needsCorrection,
+            approved: statusCounts.approved,
+            approvedReports: statusCounts.approved,
             lateReports,
 
             openBlockers:
@@ -321,6 +327,7 @@ export const getDashboardSummary =
                 0,
 
             submissionCompliance,
+            complianceRate: submissionCompliance,
         };
     };
 
@@ -404,7 +411,22 @@ export const getTaskTrends = async ({
             },
         ]);
 
-    return trends;
+    return trends.map((item) => {
+        let period = "";
+        if (item.weekStart) {
+            try {
+                const d = new Date(item.weekStart);
+                period = d.toISOString().slice(0, 10);
+            } catch {
+                period = String(item.weekStart);
+            }
+        }
+        return {
+            ...item,
+            period,
+            hoursSpent: 0,
+        };
+    });
 };
 
 export const getStatusByMember = async ({
@@ -417,194 +439,238 @@ export const getStatusByMember = async ({
             currentUser,
         });
 
-    const results =
-        await WeeklyReport.aggregate([
-            {
-                $match: match,
-            },
-            {
-                $group: {
-                    _id: {
-                        owner: "$owner",
-                        status: "$status",
-                    },
+    // 1. Determine members to include
+    let memberQuery = { role: USER_ROLES.MEMBER, isActive: true };
 
-                    count: {
-                        $sum: 1,
-                    },
+    if (currentUser.role === USER_ROLES.MANAGER) {
+        const managedProjects = await Project.find({
+            manager: currentUser.id,
+        }).select("_id");
+        const managedProjectIds = managedProjects.map((p) => p._id);
+
+        const assignedUserIds = await ProjectMember.find({
+            project: { $in: managedProjectIds },
+        }).distinct("user");
+
+        const reportOwners = await WeeklyReport.find(match).distinct("owner");
+
+        const combinedUserIds = Array.from(
+            new Set([
+                ...assignedUserIds.map((id) => id.toString()),
+                ...reportOwners.map((id) => id.toString()),
+            ])
+        );
+
+        if (combinedUserIds.length > 0) {
+            memberQuery._id = {
+                $in: combinedUserIds.map((id) => toObjectId(id)),
+            };
+        }
+    } else if (currentUser.role === USER_ROLES.MEMBER) {
+        memberQuery._id = toObjectId(currentUser.id);
+    }
+
+    const teamUsers = await User.find(memberQuery)
+        .select("_id name email role department jobTitle")
+        .sort({ name: 1 })
+        .lean();
+
+    // 2. Fetch report counts grouped by owner and status
+    const reportCounts = await WeeklyReport.aggregate([
+        {
+            $match: match,
+        },
+        {
+            $group: {
+                _id: {
+                    owner: "$owner",
+                    status: "$status",
+                },
+                count: {
+                    $sum: 1,
                 },
             },
-            {
-                $group: {
-                    _id: "$_id.owner",
+        },
+    ]);
 
-                    statuses: {
-                        $push: {
-                            status: "$_id.status",
-                            count: "$count",
-                        },
-                    },
+    const countsMap = new Map();
+    reportCounts.forEach((item) => {
+        const ownerId = item._id.owner.toString();
+        if (!countsMap.has(ownerId)) {
+            countsMap.set(ownerId, {
+                draft: 0,
+                submitted: 0,
+                needsCorrection: 0,
+                approved: 0,
+            });
+        }
+        const userCounts = countsMap.get(ownerId);
+        if (item._id.status === REPORT_STATUSES.DRAFT) userCounts.draft += item.count;
+        if (item._id.status === REPORT_STATUSES.SUBMITTED) userCounts.submitted += item.count;
+        if (item._id.status === REPORT_STATUSES.NEEDS_CORRECTION) userCounts.needsCorrection += item.count;
+        if (item._id.status === REPORT_STATUSES.APPROVED) userCounts.approved += item.count;
+    });
 
-                    totalReports: {
-                        $sum: "$count",
-                    },
-                },
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "user",
-                },
-            },
-            {
-                $unwind: "$user",
-            },
-            {
-                $project: {
-                    _id: 0,
-
-                    user: {
-                        id: "$user._id",
-                        name: "$user.name",
-                        email: "$user.email",
-                        department:
-                            "$user.department",
-                        jobTitle:
-                            "$user.jobTitle",
-                    },
-
-                    statuses: 1,
-                    totalReports: 1,
-                },
-            },
-            {
-                $sort: {
-                    "user.name": 1,
-                },
-            },
-        ]);
-
-    return results.map((item) => {
-        const counts = {
+    return teamUsers.map((u) => {
+        const uId = u._id.toString();
+        const counts = countsMap.get(uId) || {
             draft: 0,
             submitted: 0,
             needsCorrection: 0,
             approved: 0,
         };
-
-        item.statuses.forEach((entry) => {
-            if (entry.status === "draft") {
-                counts.draft = entry.count;
-            }
-
-            if (entry.status === "submitted") {
-                counts.submitted = entry.count;
-            }
-
-            if (
-                entry.status ===
-                "needs_correction"
-            ) {
-                counts.needsCorrection =
-                    entry.count;
-            }
-
-            if (entry.status === "approved") {
-                counts.approved = entry.count;
-            }
-        });
+        const totalReports =
+            counts.draft +
+            counts.submitted +
+            counts.needsCorrection +
+            counts.approved;
 
         return {
-            user: item.user,
-            totalReports: item.totalReports,
-            ...counts,
+            userId: uId,
+            name: u.name || "Unknown Member",
+            email: u.email || "",
+            role: u.role || USER_ROLES.MEMBER,
+            department: u.department || "",
+            jobTitle: u.jobTitle || "",
+            draftCount: counts.draft,
+            submittedCount: counts.submitted,
+            needsCorrectionCount: counts.needsCorrection,
+            approvedCount: counts.approved,
+            totalReports,
+
+            // Backward compatibility fields
+            user: {
+                id: uId,
+                name: u.name || "Unknown Member",
+                email: u.email || "",
+                role: u.role || USER_ROLES.MEMBER,
+                department: u.department || "",
+                jobTitle: u.jobTitle || "",
+            },
+            draft: counts.draft,
+            submitted: counts.submitted,
+            needsCorrection: counts.needsCorrection,
+            approved: counts.approved,
         };
     });
 };
 
-export const getProjectWorkload =
-    async ({
+export const getProjectWorkload = async ({
+    filters,
+    currentUser,
+}) => {
+    const match = await buildDashboardMatch({
         filters,
         currentUser,
-    }) => {
-        const match =
-            await buildDashboardMatch({
-                filters,
-                currentUser,
-            });
+    });
 
-        return WeeklyReport.aggregate([
-            {
-                $match: match,
-            },
-            {
-                $unwind: "$hoursBreakdown",
-            },
+    // 1. Get projects relevant to user
+    const projectQuery = { status: "active" };
+    if (currentUser.role === USER_ROLES.MANAGER) {
+        projectQuery.manager = currentUser.id;
+    } else if (filters?.projectId) {
+        projectQuery._id = toObjectId(filters.projectId);
+    }
+
+    const projects = await Project.find(projectQuery)
+        .select("_id name code category")
+        .sort({ name: 1 })
+        .lean();
+
+    // 2. Aggregate hours and completed tasks from weekly reports
+    const [hoursRows, taskRows] = await Promise.all([
+        WeeklyReport.aggregate([
+            { $match: match },
+            { $unwind: "$hoursBreakdown" },
             {
                 $group: {
-                    _id:
-                        "$hoursBreakdown.project",
-
-                    totalHours: {
-                        $sum:
-                            "$hoursBreakdown.hours",
-                    },
-
-                    entries: {
-                        $sum: 1,
-                    },
-
-                    contributors: {
-                        $addToSet: "$owner",
-                    },
+                    _id: "$hoursBreakdown.project",
+                    totalHours: { $sum: "$hoursBreakdown.hours" },
+                    contributors: { $addToSet: "$owner" },
                 },
             },
+        ]),
+        WeeklyReport.aggregate([
+            { $match: match },
+            { $unwind: "$completedTasks" },
             {
-                $lookup: {
-                    from: "projects",
-                    localField: "_id",
-                    foreignField: "_id",
-                    as: "project",
+                $group: {
+                    _id: "$completedTasks.project",
+                    completedTaskCount: { $sum: 1 },
                 },
             },
-            {
-                $unwind: "$project",
+        ]),
+    ]);
+
+    const hoursMap = new Map(
+        hoursRows.map((r) => [
+            r._id.toString(),
+            { hours: r.totalHours, contributors: r.contributors },
+        ])
+    );
+    const taskMap = new Map(
+        taskRows.map((r) => [r._id.toString(), r.completedTaskCount])
+    );
+
+    const resultMap = new Map();
+
+    projects.forEach((proj) => {
+        const pId = proj._id.toString();
+        const hourData = hoursMap.get(pId) || { hours: 0, contributors: [] };
+        const completedTasks = taskMap.get(pId) || 0;
+        const roundedHours = Math.round(hourData.hours * 100) / 100;
+
+        resultMap.set(pId, {
+            projectId: pId,
+            projectName: proj.name,
+            projectCode: proj.code,
+            hoursSpent: roundedHours,
+            completedTaskCount: completedTasks,
+
+            // Backward compatibility
+            project: {
+                id: pId,
+                name: proj.name,
+                code: proj.code,
+                category: proj.category,
             },
-            {
-                $project: {
-                    _id: 0,
+            totalHours: roundedHours,
+            contributorCount: hourData.contributors.length,
+        });
+    });
+
+    // Also include any project referenced in reports not in initial query
+    for (const [pId, hourData] of hoursMap.entries()) {
+        if (!resultMap.has(pId)) {
+            const extraProj = await Project.findById(pId)
+                .select("_id name code category")
+                .lean();
+            if (extraProj) {
+                const roundedHours = Math.round(hourData.hours * 100) / 100;
+                resultMap.set(pId, {
+                    projectId: pId,
+                    projectName: extraProj.name,
+                    projectCode: extraProj.code,
+                    hoursSpent: roundedHours,
+                    completedTaskCount: taskMap.get(pId) || 0,
 
                     project: {
-                        id: "$project._id",
-                        name: "$project.name",
-                        code: "$project.code",
-                        category:
-                            "$project.category",
+                        id: pId,
+                        name: extraProj.name,
+                        code: extraProj.code,
+                        category: extraProj.category,
                     },
+                    totalHours: roundedHours,
+                    contributorCount: hourData.contributors.length,
+                });
+            }
+        }
+    }
 
-                    totalHours: {
-                        $round: [
-                            "$totalHours",
-                            2,
-                        ],
-                    },
-
-                    entries: 1,
-
-                    contributorCount: {
-                        $size: "$contributors",
-                    },
-                },
-            },
-            {
-                $sort: {
-                    totalHours: -1,
-                },
-            },
-        ]);
-    };
+    const results = Array.from(resultMap.values());
+    results.sort((a, b) => b.hoursSpent - a.hoursSpent);
+    return results;
+};
 
 export const getTimeDistribution =
     async ({
@@ -664,18 +730,24 @@ export const getTimeDistribution =
                 0
             );
 
-        return results.map((item) => ({
-            ...item,
-
-            percentage:
+        return results.map((item) => {
+            const hours = item.totalHours;
+            const percentage =
                 overallHours === 0
                     ? 0
                     : Math.round(
-                        (item.totalHours /
+                        (hours /
                             overallHours) *
                         10000
-                    ) / 100,
-        }));
+                    ) / 100;
+
+            return {
+                category: item.category,
+                hours,
+                totalHours: hours,
+                percentage,
+            };
+        });
     };
 
 export const getSectionComparison =
@@ -826,45 +898,115 @@ export const getDashboardActivity =
                     .lean(),
             ]);
 
-        const reportActivities =
-            reports.map((report) => ({
+        const reportActivities = reports.map((report) => {
+            const ownerObj = report.owner;
+            const ownerId =
+                ownerObj?._id?.toString() ||
+                ownerObj?.id?.toString() ||
+                (typeof ownerObj === "string" ? ownerObj : "");
+            const ownerName = ownerObj?.name || "Team Member";
+            const currentVer = report.currentVersion || 1;
+
+            let title = `${ownerName} updated weekly report draft`;
+            if (report.status === REPORT_STATUSES.SUBMITTED) {
+                title = `${ownerName} submitted weekly report (v${currentVer})`;
+            } else if (report.status === REPORT_STATUSES.APPROVED) {
+                title = `Weekly report approved (v${currentVer})`;
+            } else if (report.status === REPORT_STATUSES.NEEDS_CORRECTION) {
+                title = `Corrections requested on weekly report (v${currentVer})`;
+            }
+
+            const timestamp = report.updatedAt || report.createdAt;
+
+            return {
+                id: `report-${report._id.toString()}-${new Date(timestamp).getTime()}`,
                 type: "report_updated",
-                occurredAt: report.updatedAt,
+                title,
+                details:
+                    report.summary ||
+                    `Weekly report for week of ${
+                        report.weekStart
+                            ? new Date(report.weekStart)
+                                  .toISOString()
+                                  .slice(0, 10)
+                            : ""
+                    }`,
+                user: {
+                    id: ownerId,
+                    name: ownerName,
+                },
+                actor: ownerObj
+                    ? {
+                          id: ownerId,
+                          name: ownerName,
+                          email: ownerObj.email || "",
+                          department: ownerObj.department || "",
+                          jobTitle: ownerObj.jobTitle || "",
+                      }
+                    : { id: ownerId, name: ownerName },
+                timestamp,
+                occurredAt: timestamp,
 
                 report: {
-                    id: report._id,
+                    id: report._id.toString(),
                     weekStart: report.weekStart,
                     status: report.status,
-                    currentVersion:
-                        report.currentVersion,
+                    currentVersion: report.currentVersion,
                 },
+            };
+        });
 
-                actor: report.owner,
-            }));
+        const reviewActivities = reviews.map((review) => {
+            const reviewerObj = review.reviewer;
+            const reviewerId =
+                reviewerObj?._id?.toString() ||
+                reviewerObj?.id?.toString() ||
+                (typeof reviewerObj === "string" ? reviewerObj : "");
+            const reviewerName = reviewerObj?.name || "Reviewer";
+            const ownerObj = review.report?.owner;
+            const ownerName = ownerObj?.name || "Team Member";
 
-        const reviewActivities =
-            reviews.map((review) => ({
+            const title =
+                review.action === "approved"
+                    ? `${reviewerName} approved ${ownerName}'s report`
+                    : `${reviewerName} requested corrections on ${ownerName}'s report`;
+
+            const timestamp = review.reviewedAt || review.createdAt;
+
+            return {
+                id: `review-${review._id.toString()}-${new Date(timestamp).getTime()}`,
                 type:
                     review.action === "approved"
                         ? "report_approved"
                         : "changes_requested",
-
-                occurredAt:
-                    review.reviewedAt,
+                title,
+                details:
+                    review.comment ||
+                    `Review for version ${review.versionNumber}`,
+                user: {
+                    id: reviewerId,
+                    name: reviewerName,
+                },
+                actor: reviewerObj
+                    ? {
+                          id: reviewerId,
+                          name: reviewerName,
+                          email: reviewerObj.email || "",
+                          role: reviewerObj.role || "",
+                      }
+                    : { id: reviewerId, name: reviewerName },
+                timestamp,
+                occurredAt: timestamp,
 
                 report: {
-                    id: review.report?._id,
-                    weekStart:
-                        review.report?.weekStart,
-                    status:
-                        review.report?.status,
+                    id: review.report?._id?.toString(),
+                    weekStart: review.report?.weekStart,
+                    status: review.report?.status,
                 },
-
-                actor: review.reviewer,
                 comment: review.comment,
-                versionNumber:
-                    review.versionNumber,
-            }));
+                versionNumber: review.versionNumber,
+            };
+        });
 
         return [
             ...reportActivities,

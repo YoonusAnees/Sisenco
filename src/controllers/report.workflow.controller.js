@@ -16,15 +16,16 @@ export const submitReport = asyncHandler(
             currentUser: request.user,
         });
 
+        const report = result.report || result;
+        const isResubmission = result.isResubmission || Boolean(report.currentVersion > 1);
+
         response.status(200).json({
             success: true,
-
-            message: result.isResubmission
+            message: isResubmission
                 ? "Weekly report resubmitted successfully"
                 : "Weekly report submitted successfully",
-
             data: {
-                report: result.report,
+                report,
             },
         });
     }
@@ -36,8 +37,11 @@ export const requestCorrection =
             const { reportId } =
                 request.validated.params;
 
-            const { correctionNote } =
-                request.validated.body;
+            const correctionNote =
+                request.validated.body?.correctionNote ||
+                request.validated.body?.note ||
+                request.validated.body?.comment ||
+                "";
 
             const report =
                 await requestReportCorrection({

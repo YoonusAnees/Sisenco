@@ -48,16 +48,29 @@ export const requestChangesSchema = z.object({
             comment: z
                 .string()
                 .trim()
-                .min(
-                    3,
-                    "A correction comment is required"
-                )
-                .max(
-                    2000,
-                    "Comment cannot exceed 2000 characters"
-                ),
+                .max(2000, "Comment cannot exceed 2000 characters")
+                .optional(),
+            note: z
+                .string()
+                .trim()
+                .max(2000, "Note cannot exceed 2000 characters")
+                .optional(),
+            correctionNote: z
+                .string()
+                .trim()
+                .max(2000, "Correction note cannot exceed 2000 characters")
+                .optional(),
         })
-        .strict(),
+        .refine(
+            (data) => {
+                const text = data.comment || data.note || data.correctionNote;
+                return Boolean(text && text.trim().length >= 3);
+            },
+            {
+                message: "A correction comment or note of at least 3 characters is required",
+                path: ["comment"],
+            }
+        ),
 });
 
 export const approveReportSchema = z.object({
@@ -68,14 +81,17 @@ export const approveReportSchema = z.object({
             comment: z
                 .string()
                 .trim()
-                .max(
-                    2000,
-                    "Comment cannot exceed 2000 characters"
-                )
+                .max(2000, "Comment cannot exceed 2000 characters")
                 .optional()
                 .default(""),
+            note: z
+                .string()
+                .trim()
+                .max(2000, "Note cannot exceed 2000 characters")
+                .optional(),
         })
-        .strict(),
+        .optional()
+        .default({}),
 });
 
 export const getReviewHistorySchema =

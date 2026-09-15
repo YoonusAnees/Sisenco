@@ -363,16 +363,29 @@ export const requestCorrectionSchema = z.object({
       correctionNote: z
         .string()
         .trim()
-        .min(
-          5,
-          "Correction note must contain at least 5 characters"
-        )
-        .max(
-          2000,
-          "Correction note cannot exceed 2000 characters"
-        ),
+        .max(2000, "Correction note cannot exceed 2000 characters")
+        .optional(),
+      note: z
+        .string()
+        .trim()
+        .max(2000, "Note cannot exceed 2000 characters")
+        .optional(),
+      comment: z
+        .string()
+        .trim()
+        .max(2000, "Comment cannot exceed 2000 characters")
+        .optional(),
     })
-    .strict(),
+    .refine(
+      (data) => {
+        const text = data.correctionNote || data.note || data.comment;
+        return Boolean(text && text.trim().length >= 3);
+      },
+      {
+        message: "A correction note of at least 3 characters is required",
+        path: ["correctionNote"],
+      }
+    ),
 });
 
 export const getReportVersionsSchema = z.object({
@@ -414,4 +427,11 @@ export const getReportVersionSchema = z.object({
 
 export const approveReportSchema = z.object({
   params: reportWorkflowParamsSchema,
+  body: z
+    .object({
+      comment: z.string().trim().max(2000).optional().default(""),
+      note: z.string().trim().max(2000).optional(),
+    })
+    .optional()
+    .default({}),
 });

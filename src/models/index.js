@@ -5,3 +5,4 @@ export { default as WeeklyReport } from "./model.weekly.report.js";
 export { default as ReportVersion } from "./model.report.version.js";
 export { default as Review } from "./model.review.js";
 export { default as Notification } from "./model.notification.js";
+export { default as AiConversation } from "./model.ai.conversation.js";

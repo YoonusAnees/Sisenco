@@ -273,6 +273,13 @@ export const createWeeklyReport = async ({
     reportData,
     currentUser,
 }) => {
+    if (currentUser.role !== USER_ROLES.MEMBER) {
+        throw new AppError(
+            "Only members can create weekly reports. Managers and administrators review and approve reports submitted by members.",
+            403
+        );
+    }
+
     const weekStart = normalizeWeekStart(
         reportData.weekStart
     );
@@ -469,6 +476,13 @@ export const updateWeeklyReport = async ({
     updateData,
     currentUser,
 }) => {
+    if (currentUser.role !== USER_ROLES.MEMBER) {
+        throw new AppError(
+            "Only members can edit weekly reports. Managers and administrators use the approve or request-correction actions instead.",
+            403
+        );
+    }
+
     const report = await WeeklyReport.findById(
         reportId
     );
