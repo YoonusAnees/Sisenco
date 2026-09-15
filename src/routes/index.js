@@ -6,6 +6,7 @@ import reportRoutes from "./report.routes.js";
 import reviewRoutes from "./review.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import aiRoutes from "./ai.routes.js";
 
 const router = Router();
 
@@ -15,7 +16,8 @@ router.use("/projects", projectRoutes);
 router.use("/reports", reportRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/dashboard", dashboardRoutes);
-router.use("/notifications",notificationRoutes);
+router.use("/notifications", notificationRoutes);
+router.use("/ai", aiRoutes);
 
 
 

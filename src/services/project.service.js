@@ -242,9 +242,8 @@ export const getProjects = async ({
      */
     if (currentUser.role === USER_ROLES.MEMBER) {
         const memberships =
-            await ProjectMembership.find({
+            await ProjectMember.find({
                 user: currentUser.id,
-                isActive: true,
             }).select("project");
 
         filter._id = {
@@ -347,10 +346,9 @@ export const getProjectById = async ({
 
     if (currentUser.role === USER_ROLES.MEMBER) {
         const membership =
-            await ProjectMembership.exists({
+            await ProjectMember.exists({
                 project: projectId,
                 user: currentUser.id,
-                isActive: true,
             });
 
         if (!membership) {

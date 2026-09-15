@@ -15,13 +15,15 @@
     "test:unit": "cross-env NODE_ENV=test EMAIL_ENABLED=false NODE_OPTIONS=--experimental-vm-modules jest --setupFilesAfterEnv=./tests/setup.js --runInBand tests/unit",
     "test:integration": "cross-env NODE_ENV=test EMAIL_ENABLED=false NODE_OPTIONS=--experimental-vm-modules jest --setupFilesAfterEnv=./tests/setup.js --runInBand tests/integration",
     "email:test": "node scripts/testBrevoEmail.js",
-    "email:overdue": "node jobs/sendOverdueReportReminders.js"
+    "email:overdue": "node jobs/sendOverdueReportReminders.js",
+    "test:gemini": "node scripts/testGeminiConnection.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@getbrevo/brevo": "^6.0.3",
+    "@google/genai": "^2.22.0",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
